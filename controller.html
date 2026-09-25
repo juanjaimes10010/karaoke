@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <title>YouTube Controller</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      html {
+        min-height: 100%;
+        height: 100%;
+        max-height: 100%;
+        font-family: Arial, sans-serif;
+      }
+
+      body {
+        display: flex;
+        flex-direction: column;
+        max-height: 100%;
+        max-width: 750px;
+        margin: auto;
+        padding: 10px;
+        background: #111;
+        color: white;
+      }
+
+      h1 {
+        padding-bottom: 10px;
+      }
+
+      button {
+        padding: 10px 14px;
+        margin: 4px;
+        cursor: pointer;
+        border: 0;
+        border-radius: 6px;
+        background: #333;
+        color: white;
+        font-size: 16px;
+      }
+
+      button:hover {
+        background: #555;
+      }
+
+      #addButton {
+        background: #cc0000;
+        width: 100%;
+      }
+
+      #addButton:hover {
+        background: #ee0000;
+      }
+
+      .controls {
+        margin: 15px 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      #clearButton {
+        background: #600;
+      }
+
+      #clearButton:hover {
+        background: #900;
+      }
+
+      #nowPlaying {
+        padding: 14px;
+        background: #1c1c1c;
+        border-radius: 6px;
+        font-weight: bold;
+      }
+
+      #status {
+        margin: 10px 0;
+        color: #aaa;
+        font-size: 14px;
+      }
+
+      h2 {
+        margin-bottom: 5px;
+      }
+
+      #queue {
+        list-style: none;
+        padding: 10px 20px;
+        flex: 1;
+        overflow-y: scroll;
+      }
+
+      #queue li {
+        padding: 14px;
+        margin: 6px 0;
+        background: #222;
+        border: 1px solid #333;
+        border-radius: 6px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s;
+      }
+
+      #queue li:hover {
+        background: #333;
+      }
+
+      #queue li.active {
+        background: #444;
+        border-color: #777;
+        font-weight: bold;
+      }
+
+      .video-title {
+        padding-right: 45px;
+        line-height: 1.4;
+        max-width: 40ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .remove {
+        float: right;
+        background: #600;
+        padding: 5px 9px;
+        margin: -3px 0 0 10px;
+      }
+
+      .remove:hover {
+        background: #900;
+      }
+
+      .error {
+        color: #ff7777;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>YouTube Controller</h1>
+
+    <button id="addButton">Add to Queue</button>
+
+    <div class="controls">
+      <button id="previousButton">⏮ Previous</button>
+
+      <button id="playButton">▶ Play</button>
+
+      <button id="pauseButton">⏸ Pause</button>
+
+      <button id="nextButton">Next ⏭</button>
+
+      <button id="clearButton">🗑 Clear Queue</button>
+    </div>
+
+    <div id="nowPlaying">Nothing playing</div>
+
+    <div id="status">Player connecting...</div>
+
+    <h2>Queue</h2>
+
+    <ul id="queue"></ul>
+
+    <script>
+      const addButton = document.getElementById("addButton");
+
+      const playButton = document.getElementById("playButton");
+
+      const pauseButton = document.getElementById("pauseButton");
+
+      const nextButton = document.getElementById("nextButton");
+
+      const previousButton = document.getElementById("previousButton");
+
+      const clearButton = document.getElementById("clearButton");
+
+      const queueElement = document.getElementById("queue");
+
+      const nowPlaying = document.getElementById("nowPlaying");
+
+      const status = document.getElementById("status");
+
+      let queue = [];
+      let currentIndex = -1;
+
+      // ----------------------------------------------------------
+      // ADD CURRENT YOUTUBE VIDEO
+      // ----------------------------------------------------------
+
+      addButton.addEventListener("click", async () => {
+        try {
+          if (!window.parent.electronAPI) {
+            status.textContent = "Electron API is not available.";
+
+            console.error("window.parent.electronAPI is undefined");
+
+            return;
+          }
+
+          const url = await window.parent.electronAPI.getYouTubeURL();
+          const title = await window.parent.electronAPI.getYouTubeTitle();
+          console.log("Current YouTube URL:", url);
+
+          const videoId = getYouTubeVideoId(url);
+
+          if (!videoId) {
+            status.textContent =
+              "Open a YouTube video on the right, then click Add Current Video.";
+
+            return;
+          }
+
+          const video = { videoId, title: title || videoId };
+          queue.push(video);
+
+          renderQueue();
+
+          status.textContent = `Added: ${video.title}`;
+
+          // Start playing automatically
+          // when the first item is added.
+          if (currentIndex === -1) {
+            currentIndex = 0;
+
+            loadCurrentVideo();
+          }
+        } catch (error) {
+          console.error("Add video error:", error);
+
+          status.textContent = "Failed to add video.";
+        }
+      });
+
+      // ----------------------------------------------------------
+      // EXTRACT YOUTUBE VIDEO ID
+      // ----------------------------------------------------------
+
+      function getYouTubeVideoId(url) {
+        if (!url) {
+          return null;
+        }
+
+        try {
+          const parsed = new URL(url);
+
+          const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
+
+          // youtube.com/watch?v=VIDEO_ID
+
+          if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+            const watchId = parsed.searchParams.get("v");
+
+            if (watchId) {
+              return cleanVideoId(watchId);
+            }
+
+            // youtube.com/shorts/VIDEO_ID
+
+            const shortsMatch = parsed.pathname.match(/^\/shorts\/([^/?#]+)/);
+
+            if (shortsMatch) {
+              return cleanVideoId(shortsMatch[1]);
+            }
+
+            // youtube.com/live/VIDEO_ID
+
+            const liveMatch = parsed.pathname.match(/^\/live\/([^/?#]+)/);
+
+            if (liveMatch) {
+              return cleanVideoId(liveMatch[1]);
+            }
+
+            // youtube.com/embed/VIDEO_ID
+
+            const embedMatch = parsed.pathname.match(/^\/embed\/([^/?#]+)/);
+
+            if (embedMatch) {
+              return cleanVideoId(embedMatch[1]);
+            }
+          }
+
+          // youtu.be/VIDEO_ID
+
+          if (host === "youtu.be") {
+            const id = parsed.pathname.split("/").filter(Boolean)[0];
+
+            return cleanVideoId(id);
+          }
+        } catch (error) {
+          console.error("Invalid YouTube URL:", error);
+        }
+
+        return null;
+      }
+
+      function cleanVideoId(value) {
+        if (!value) {
+          return null;
+        }
+
+        const id = String(value)
+          .split(/[?&#/]/)[0]
+          .trim();
+
+        return id || null;
+      }
+
+      // ----------------------------------------------------------
+      // LOAD CURRENT VIDEO
+      // ----------------------------------------------------------
+
+      function loadCurrentVideo() {
+        if (currentIndex < 0 || currentIndex >= queue.length) {
+          nowPlaying.textContent = "Nothing playing";
+
+          renderQueue();
+
+          return;
+        }
+
+        const video = queue[currentIndex];
+
+        window.parent.electronAPI.sendPlayerCommand({
+          type: "load",
+          videoId: video.videoId,
+        });
+
+        nowPlaying.textContent = `Playing ${currentIndex + 1}/${
+          queue.length
+        }: ${video.title}`;
+
+        status.textContent = "Loading video...";
+
+        renderQueue();
+      }
+
+      // ----------------------------------------------------------
+      // PLAY
+      // ----------------------------------------------------------
+
+      playButton.addEventListener("click", () => {
+        window.parent.electronAPI.sendPlayerCommand({
+          type: "play",
+        });
+      });
+
+      // ----------------------------------------------------------
+      // PAUSE
+      // ----------------------------------------------------------
+
+      pauseButton.addEventListener("click", () => {
+        window.parent.electronAPI.sendPlayerCommand({
+          type: "pause",
+        });
+      });
+
+      // ----------------------------------------------------------
+      // NEXT
+      // ----------------------------------------------------------
+
+      nextButton.addEventListener("click", () => {
+        if (queue.length === 0) {
+          return;
+        }
+
+        if (currentIndex < queue.length - 1) {
+          currentIndex++;
+
+          loadCurrentVideo();
+        } else {
+          status.textContent = "End of queue.";
+        }
+      });
+
+      // ----------------------------------------------------------
+      // PREVIOUS
+      // ----------------------------------------------------------
+
+      previousButton.addEventListener("click", () => {
+        if (queue.length === 0) {
+          return;
+        }
+
+        if (currentIndex > 0) {
+          currentIndex--;
+
+          loadCurrentVideo();
+        }
+      });
+
+      // ----------------------------------------------------------
+      // CLEAR QUEUE
+      // ----------------------------------------------------------
+
+      clearButton.addEventListener("click", () => {
+        queue = [];
+
+        currentIndex = -1;
+
+        window.parent.electronAPI.sendPlayerCommand({
+          type: "clear",
+        });
+
+        nowPlaying.textContent = "Nothing playing";
+
+        status.textContent = "Queue cleared.";
+
+        renderQueue();
+      });
+
+      // ----------------------------------------------------------
+      // REMOVE ITEM / RENDER QUEUE
+      // ----------------------------------------------------------
+
+      function removeQueueItem(index) {
+        if (index < 0 || index >= queue.length) {
+          return;
+        }
+
+        const wasCurrent = index === currentIndex;
+
+        queue.splice(index, 1);
+
+        if (queue.length === 0) {
+          currentIndex = -1;
+
+          window.parent.electronAPI.sendPlayerCommand({
+            type: "clear",
+          });
+
+          nowPlaying.textContent = "Nothing playing";
+
+          status.textContent = "Queue is empty.";
+        } else if (index < currentIndex) {
+          currentIndex--;
+        } else if (index === currentIndex) {
+          currentIndex = Math.min(currentIndex, queue.length - 1);
+
+          if (wasCurrent) {
+            loadCurrentVideo();
+          }
+        }
+
+        renderQueue();
+      }
+
+      function renderQueue() {
+        queueElement.innerHTML = "";
+
+        queue.forEach((video, index) => {
+          const li = document.createElement("li");
+
+          if (index === currentIndex) {
+            li.classList.add("active");
+          }
+
+          const removeButton = document.createElement("button");
+
+          removeButton.className = "remove";
+
+          removeButton.textContent = "✕";
+
+          const videoTitle = document.createElement("div");
+
+          videoTitle.className = "video-title";
+
+          videoTitle.textContent = `${index + 1}. ${video.title}`;
+
+          videoTitle.addEventListener("click", () => {
+            currentIndex = index;
+
+            loadCurrentVideo();
+          });
+
+          removeButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+
+            removeQueueItem(index);
+          });
+
+          li.appendChild(removeButton);
+
+          li.appendChild(videoTitle);
+
+          queueElement.appendChild(li);
+        });
+      }
+
+      // ----------------------------------------------------------
+      // PLAYER STATUS / AUTO NEXT
+      // ----------------------------------------------------------
+
+      if (window.parent.electronAPI) {
+        window.parent.electronAPI.onPlayerEvent((data) => {
+          console.log("Player event:", data);
+
+          if (!data || !data.type) {
+            return;
+          }
+
+          switch (data.type) {
+            case "ready":
+              status.textContent = "Player ready.";
+
+              break;
+
+            case "playing":
+              status.textContent = "Playing.";
+
+              break;
+
+            case "paused":
+              status.textContent = "Paused.";
+
+              break;
+
+            case "ended":
+              if (currentIndex < queue.length - 1) {
+                currentIndex++;
+
+                loadCurrentVideo();
+              } else {
+                status.textContent = "Queue finished.";
+
+                nowPlaying.textContent =
+                  currentIndex >= 0
+                    ? `Finished: ${queue[currentIndex].title}`
+                    : "Nothing playing";
+
+                renderQueue();
+              }
+
+              break;
+
+            case "error":
+              status.textContent = `YouTube player error: ${
+                data.errorCode ?? "unknown"
+              }`;
+
+              break;
+
+            default:
+              break;
+          }
+        });
+
+        status.textContent = "Controller ready.";
+      } else {
+        status.textContent = "Electron API is not available.";
+      }
+
+      renderQueue();
+    </script>
+  </body>
+</html>

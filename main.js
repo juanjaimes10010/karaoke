@@ -14,6 +14,8 @@ const fs = require("fs");
 let mainWindow = null;
 let playerWindow = null;
 let youtubeView = null;
+let validationWindow = null;
+let validationRequestId = null;
 let appServer = null;
 let appOrigin = null;
 
@@ -25,11 +27,11 @@ Menu.setApplicationMenu(null)
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 900,
+    width: 800,
+    height: 800,
 
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 400,
+    minHeight: 400,
 
     backgroundColor: "#000000",
 
@@ -44,6 +46,7 @@ function createMainWindow() {
 
   youtubeView = new WebContentsView({
     webPreferences: {
+      preload: path.join(__dirname, "youtube-preload.js"),
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -63,6 +66,10 @@ function createMainWindow() {
 
     if (playerWindow && !playerWindow.isDestroyed()) {
       playerWindow.close();
+    }
+
+    if (validationWindow && !validationWindow.isDestroyed()) {
+      validationWindow.close();
     }
   });
 }
@@ -97,10 +104,10 @@ function updateYouTubeBounds() {
 
 function createPlayerWindow() {
   playerWindow = new BrowserWindow({
-    width: 900,
+    width: 1100,
     height: 700,
 
-    minWidth: 500,
+    minWidth: 600,
     minHeight: 400,
 
     backgroundColor: "#000000",
@@ -148,6 +155,94 @@ ipcMain.handle("get-youtube-title", () => {
     .getTitle()
     .replace(/\s+-\s+YouTube(?: Music)?$/, "")
     .trim();
+});
+
+ipcMain.on("youtube-video-add-request", (event, video) => {
+  if (
+    !youtubeView ||
+    youtubeView.webContents.isDestroyed() ||
+    event.sender !== youtubeView.webContents ||
+    !mainWindow ||
+    mainWindow.isDestroyed()
+  ) {
+    return;
+  }
+
+  mainWindow.webContents.send("youtube-video-add-request", video);
+});
+
+function startVideoValidation(requestId, videoId) {
+  if (validationWindow && !validationWindow.isDestroyed()) {
+    const previousWindow = validationWindow;
+    validationWindow = null;
+    previousWindow.close();
+  }
+
+  validationRequestId = requestId;
+  const windowInstance = new BrowserWindow({
+    width: 520,
+    height: 340,
+    minWidth: 480,
+    minHeight: 320,
+    resizable: false,
+    show: false,
+    title: "Checking YouTube video",
+    backgroundColor: "#000000",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false
+    }
+  });
+  validationWindow = windowInstance;
+
+  const query = new URLSearchParams({ requestId, videoId });
+  windowInstance.loadURL(`${appOrigin}/validate.html?${query}`);
+
+  windowInstance.on("closed", () => {
+    if (validationWindow === windowInstance) {
+      validationWindow = null;
+      validationRequestId = null;
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("player-to-controller", {
+          type: "validation-result",
+          requestId,
+          ok: false,
+          errorCode: "checker-closed"
+        });
+      }
+    }
+  });
+}
+
+ipcMain.on("validate-video", (event, data) => {
+  if (
+    !mainWindow ||
+    mainWindow.isDestroyed() ||
+    event.sender !== mainWindow.webContents ||
+    !data?.requestId ||
+    !data?.videoId
+  ) {
+    return;
+  }
+
+  startVideoValidation(String(data.requestId), String(data.videoId));
+});
+
+ipcMain.on("cancel-video-validation", (event, requestId) => {
+  if (
+    !mainWindow ||
+    event.sender !== mainWindow.webContents ||
+    requestId !== validationRequestId
+  ) {
+    return;
+  }
+
+  if (validationWindow && !validationWindow.isDestroyed()) {
+    validationWindow.close();
+  }
 });
 
 // ============================================================
@@ -199,6 +294,19 @@ ipcMain.on("player-to-controller", (event, data) => {
     return;
   }
 
+  if (
+    event.sender === validationWindow?.webContents &&
+    data?.type === "validation-result" &&
+    data.requestId === validationRequestId
+  ) {
+    const finishedWindow = validationWindow;
+    validationWindow = null;
+    validationRequestId = null;
+    if (!finishedWindow.isDestroyed()) {
+      finishedWindow.close();
+    }
+  }
+
   mainWindow.webContents.send(
     "player-to-controller",
     data
@@ -219,7 +327,8 @@ app.whenReady().then(async () => {
       "/": "index.html",
       "/index.html": "index.html",
       "/controller.html": "controller.html",
-      "/youtube.html": "youtube.html"
+      "/youtube.html": "youtube.html",
+      "/validate.html": "validate.html"
     };
     const filename = files[pathname];
 

@@ -15,6 +15,20 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return ipcRenderer.invoke("get-youtube-title");
   },
 
+  onYouTubeVideoAddRequest: (callback) => {
+    ipcRenderer.on("youtube-video-add-request", (event, video) => {
+      callback(video);
+    });
+  },
+
+  validateVideo: (data) => {
+    ipcRenderer.send("validate-video", data);
+  },
+
+  cancelVideoValidation: (requestId) => {
+    ipcRenderer.send("cancel-video-validation", requestId);
+  },
+
   // ==========================================================
   // DIVIDER
   // ==========================================================

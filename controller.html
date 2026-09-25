@@ -87,6 +87,57 @@
         font-size: 14px;
       }
 
+      #notification {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        left: 14px;
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 14px;
+        border-left: 4px solid #888;
+        border-radius: 6px;
+        background: #292929;
+        box-shadow: 0 4px 18px #000a;
+        color: white;
+        line-height: 1.4;
+      }
+
+      #notification.visible {
+        display: flex;
+      }
+
+      #notificationMessage {
+        flex: 1;
+      }
+
+      #notificationClose {
+        flex: none;
+        margin: 0;
+        padding: 0 4px;
+        background: transparent;
+        color: inherit;
+        font-size: 22px;
+        line-height: 1;
+      }
+
+      #notificationClose:hover {
+        background: #ffffff22;
+      }
+
+      #notification.error {
+        border-color: #ff7777;
+        background: #481818;
+      }
+
+      #notification.success {
+        border-color: #75d98b;
+        background: #173b20;
+      }
+
       h2 {
         margin-bottom: 5px;
       }
@@ -166,6 +217,11 @@
 
     <div id="status">Player connecting...</div>
 
+    <div id="notification" role="status" aria-live="polite">
+      <span id="notificationMessage"></span>
+      <button id="notificationClose" type="button" aria-label="Close notification">×</button>
+    </div>
+
     <h2>Queue</h2>
 
     <ul id="queue"></ul>
@@ -188,9 +244,33 @@
       const nowPlaying = document.getElementById("nowPlaying");
 
       const status = document.getElementById("status");
+      const notification = document.getElementById("notification");
+      const notificationMessage = document.getElementById("notificationMessage");
+      const notificationClose = document.getElementById("notificationClose");
 
       let queue = [];
       let currentIndex = -1;
+      let addVideoTasks = Promise.resolve();
+      let validationSequence = 0;
+      const pendingVideoChecks = new Map();
+      let notificationTimeout = null;
+
+      function showNotification(message, type = "info") {
+        notificationMessage.textContent = message;
+        notification.className = `visible ${type}`;
+        clearTimeout(notificationTimeout);
+        notificationTimeout = setTimeout(() => {
+          hideNotification();
+        }, 8000);
+      }
+
+      function hideNotification() {
+        clearTimeout(notificationTimeout);
+        notification.className = "";
+        notificationMessage.textContent = "";
+      }
+
+      notificationClose.addEventListener("click", hideNotification);
 
       // ----------------------------------------------------------
       // ADD CURRENT YOUTUBE VIDEO
@@ -209,36 +289,103 @@
           const url = await window.parent.electronAPI.getYouTubeURL();
           const title = await window.parent.electronAPI.getYouTubeTitle();
           console.log("Current YouTube URL:", url);
-
-          const videoId = getYouTubeVideoId(url);
-
-          if (!videoId) {
-            status.textContent =
-              "Open a YouTube video on the right, then click Add Current Video.";
-
-            return;
-          }
-
-          const video = { videoId, title: title || videoId };
-          queue.push(video);
-
-          renderQueue();
-
-          status.textContent = `Added: ${video.title}`;
-
-          // Start playing automatically
-          // when the first item is added.
-          if (currentIndex === -1) {
-            currentIndex = 0;
-
-            loadCurrentVideo();
-          }
+          queueVideoRequest(url, title);
         } catch (error) {
           console.error("Add video error:", error);
 
           status.textContent = "Failed to add video.";
         }
       });
+
+      function queueVideoRequest(url, title = "") {
+        addVideoTasks = addVideoTasks
+          .then(() => addVideoToQueue(url, title))
+          .catch((error) => {
+            console.error("Add video error:", error);
+            status.textContent = "Failed to add video.";
+          });
+      }
+
+      async function addVideoToQueue(url, title) {
+        const videoId = getYouTubeVideoId(url);
+
+        if (!videoId) {
+          status.textContent =
+            "Open a YouTube video or click a video link, then add it to the queue.";
+          return;
+        }
+
+        status.textContent = `Checking: ${title || videoId}`;
+
+        const requestId = `${Date.now()}-${++validationSequence}`;
+        const validation = await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            pendingVideoChecks.delete(requestId);
+            window.parent.electronAPI.cancelVideoValidation(requestId);
+            resolve({ ok: false, timedOut: true });
+          }, 20000);
+
+          pendingVideoChecks.set(requestId, (result) => {
+            clearTimeout(timeout);
+            pendingVideoChecks.delete(requestId);
+            resolve(result);
+          });
+
+          window.parent.electronAPI.validateVideo({
+            requestId,
+            videoId,
+          });
+        });
+
+        if (!validation.ok) {
+          showNotification(getVideoErrorMessage(validation), "error");
+          status.textContent = "Video wasn't added to the queue.";
+          return;
+        }
+
+        const video = { videoId, title: title || videoId };
+        queue.push(video);
+        renderQueue();
+        status.textContent = `Added: ${video.title}`;
+        showNotification(`Added to queue: ${video.title}`, "success");
+
+        if (currentIndex === -1) {
+          currentIndex = 0;
+          loadCurrentVideo();
+        }
+      }
+
+      function getVideoErrorMessage(validation, wasAlreadyQueued = false) {
+        const queueResult = wasAlreadyQueued
+          ? "It was removed from the queue."
+          : "It wasn't added to the queue.";
+
+        if (validation.timedOut) {
+          return `YouTube didn't respond while checking this video. ${queueResult}`;
+        }
+
+        if (validation.errorCode === "api-load") {
+          return `Couldn't load YouTube's player to check this video. ${queueResult}`;
+        }
+
+        if (validation.errorCode === "checker-closed") {
+          return `The video check was closed before it finished. ${queueResult}`;
+        }
+
+        switch (Number(validation.errorCode)) {
+          case 101:
+          case 150:
+            return `Can't play this video: the owner doesn't allow it to be embedded. ${queueResult}`;
+          case 100:
+            return `This video is unavailable or private. ${queueResult}`;
+          case 153:
+            return `YouTube couldn't verify the player origin. ${queueResult}`;
+          default:
+            return `YouTube couldn't play this video (error ${
+              validation.errorCode ?? "unknown"
+            }). ${queueResult}`;
+        }
+      }
 
       // ----------------------------------------------------------
       // EXTRACT YOUTUBE VIDEO ID
@@ -500,6 +647,10 @@
       // ----------------------------------------------------------
 
       if (window.parent.electronAPI) {
+        window.parent.electronAPI.onYouTubeVideoAddRequest((video) => {
+          queueVideoRequest(video?.url, video?.title);
+        });
+
         window.parent.electronAPI.onPlayerEvent((data) => {
           console.log("Player event:", data);
 
@@ -508,6 +659,12 @@
           }
 
           switch (data.type) {
+            case "validation-result": {
+              const resolveCheck = pendingVideoChecks.get(data.requestId);
+              resolveCheck?.(data);
+              break;
+            }
+
             case "ready":
               status.textContent = "Player ready.";
 
@@ -542,6 +699,17 @@
               break;
 
             case "error":
+              if (
+                currentIndex >= 0 &&
+                queue[currentIndex]?.videoId === data.videoId
+              ) {
+                const failedVideo = queue[currentIndex];
+                removeQueueItem(currentIndex);
+                status.textContent = `Skipped: ${failedVideo.title}`;
+                showNotification(getVideoErrorMessage(data, true), "error");
+                break;
+              }
+
               status.textContent = `YouTube player error: ${
                 data.errorCode ?? "unknown"
               }`;

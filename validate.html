@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>Checking YouTube video</title>
+    <style>
+      html,
+      body,
+      #player {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #000;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="player"></div>
+    <script>
+      const parameters = new URLSearchParams(window.location.search);
+      const requestId = parameters.get("requestId");
+      const videoId = parameters.get("videoId");
+      let player = null;
+      let finished = false;
+
+      function finish(result) {
+        if (finished) {
+          return;
+        }
+
+        finished = true;
+        window.electronAPI?.sendPlayerEvent({
+          type: "validation-result",
+          requestId,
+          ...result,
+        });
+      }
+
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      tag.onerror = () => finish({ ok: false, errorCode: "api-load" });
+      document.head.appendChild(tag);
+
+      window.onYouTubeIframeAPIReady = function () {
+        player = new YT.Player("player", {
+          width: "100%",
+          height: "100%",
+          playerVars: {
+            autoplay: 0,
+            controls: 1,
+            rel: 0,
+            enablejsapi: 1,
+            origin: window.location.origin,
+            playsinline: 1,
+          },
+          events: {
+            onReady: () => player.cueVideoById(videoId),
+            onError: (event) => finish({ ok: false, errorCode: event.data }),
+            onStateChange: (event) => {
+              if (
+                event.data === YT.PlayerState.CUED &&
+                player.getVideoData().video_id === videoId
+              ) {
+                finish({ ok: true });
+              }
+            },
+          },
+        });
+      };
+    </script>
+  </body>
+</html>

@@ -30,6 +30,7 @@
       let player = null;
       let playerReady = false;
       let pendingVideoId = null;
+      let currentVideoId = null;
 
       console.log("youtube.html loaded");
 
@@ -44,6 +45,8 @@
           console.log("Received command:", data);
 
           if (data.type === "load") {
+            currentVideoId = data.videoId;
+
             if (!playerReady || !player) {
               pendingVideoId = data.videoId;
               return;
@@ -65,6 +68,8 @@
           }
 
           if (data.type === "clear") {
+            currentVideoId = null;
+
             if (playerReady && player) {
               player.stopVideo();
             }
@@ -99,6 +104,7 @@
                 player.loadVideoById(pendingVideoId);
                 pendingVideoId = null;
               }
+
             },
 
             onError: function (event) {
@@ -107,6 +113,7 @@
               window.electronAPI?.sendPlayerEvent({
                 type: "error",
                 errorCode: event.data,
+                videoId: currentVideoId,
               });
             },
 

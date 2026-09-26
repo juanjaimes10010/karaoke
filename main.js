@@ -14,8 +14,7 @@ const fs = require("fs");
 let mainWindow = null;
 let playerWindow = null;
 let youtubeView = null;
-let validationWindow = null;
-let validationRequestId = null;
+let playerVolume = 1;
 let appServer = null;
 let appOrigin = null;
 
@@ -68,9 +67,6 @@ function createMainWindow() {
       playerWindow.close();
     }
 
-    if (validationWindow && !validationWindow.isDestroyed()) {
-      validationWindow.close();
-    }
   });
 }
 
@@ -106,56 +102,48 @@ function createPlayerWindow() {
   playerWindow = new BrowserWindow({
     width: 1100,
     height: 700,
-
     minWidth: 600,
     minHeight: 400,
 
     backgroundColor: "#000000",
 
     title: "YouTube Player",
-
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "player-preload.js"),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
 
-  playerWindow.loadURL(`${appOrigin}/youtube.html`);
+  playerWindow.webContents.on("did-finish-load", () => {
+    if (!/youtube\.com\/watch/.test(playerWindow?.webContents.getURL() || "")) return;
+    let attempts = 0;
+    const volumeTimer = setInterval(async () => {
+      if (!playerWindow || playerWindow.isDestroyed() || attempts++ >= 80) {
+        clearInterval(volumeTimer);
+        return;
+      }
+      try {
+        const applied = await playerWindow.webContents.executeJavaScript(`(() => {
+          const video = document.querySelector("video");
+          if (!video) return false;
+          video.volume = ${playerVolume};
+          return true;
+        })()`);
+        if (applied) clearInterval(volumeTimer);
+      } catch {
+        clearInterval(volumeTimer);
+      }
+    }, 250);
+  });
+
+  playerWindow.loadURL("https://www.youtube.com");
 
 
   playerWindow.on("closed", () => {
     playerWindow = null;
   });
 }
-
-
-// ============================================================
-// GET URL FROM REAL YOUTUBE VIEW
-// ============================================================
-
-ipcMain.handle("get-youtube-url", () => {
-  if (!youtubeView) {
-    return "";
-  }
-
-  if (youtubeView.webContents.isDestroyed()) {
-    return "";
-  }
-
-  return youtubeView.webContents.getURL();
-});
-
-ipcMain.handle("get-youtube-title", () => {
-  if (!youtubeView || youtubeView.webContents.isDestroyed()) {
-    return "";
-  }
-
-  return youtubeView.webContents
-    .getTitle()
-    .replace(/\s+-\s+YouTube(?: Music)?$/, "")
-    .trim();
-});
 
 ipcMain.on("youtube-video-add-request", (event, video) => {
   if (
@@ -169,80 +157,6 @@ ipcMain.on("youtube-video-add-request", (event, video) => {
   }
 
   mainWindow.webContents.send("youtube-video-add-request", video);
-});
-
-function startVideoValidation(requestId, videoId) {
-  if (validationWindow && !validationWindow.isDestroyed()) {
-    const previousWindow = validationWindow;
-    validationWindow = null;
-    previousWindow.close();
-  }
-
-  validationRequestId = requestId;
-  const windowInstance = new BrowserWindow({
-    width: 520,
-    height: 340,
-    minWidth: 480,
-    minHeight: 320,
-    resizable: false,
-    show: false,
-    title: "Checking YouTube video",
-    backgroundColor: "#000000",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false
-    }
-  });
-  validationWindow = windowInstance;
-
-  const query = new URLSearchParams({ requestId, videoId });
-  windowInstance.loadURL(`${appOrigin}/validate.html?${query}`);
-
-  windowInstance.on("closed", () => {
-    if (validationWindow === windowInstance) {
-      validationWindow = null;
-      validationRequestId = null;
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("player-to-controller", {
-          type: "validation-result",
-          requestId,
-          ok: false,
-          errorCode: "checker-closed"
-        });
-      }
-    }
-  });
-}
-
-ipcMain.on("validate-video", (event, data) => {
-  if (
-    !mainWindow ||
-    mainWindow.isDestroyed() ||
-    event.sender !== mainWindow.webContents ||
-    !data?.requestId ||
-    !data?.videoId
-  ) {
-    return;
-  }
-
-  startVideoValidation(String(data.requestId), String(data.videoId));
-});
-
-ipcMain.on("cancel-video-validation", (event, requestId) => {
-  if (
-    !mainWindow ||
-    event.sender !== mainWindow.webContents ||
-    requestId !== validationRequestId
-  ) {
-    return;
-  }
-
-  if (validationWindow && !validationWindow.isDestroyed()) {
-    validationWindow.close();
-  }
 });
 
 // ============================================================
@@ -274,43 +188,40 @@ ipcMain.on("divider-position", (event, x) => {
 // ============================================================
 
 ipcMain.on("controller-to-player", (event, data) => {
-  if (!playerWindow || playerWindow.isDestroyed()) {
-    return;
-  }
-
-  playerWindow.webContents.send(
-    "controller-to-player",
-    data
-  );
-});
-
-
-// ============================================================
-// PLAYER → CONTROLLER
-// ============================================================
-
-ipcMain.on("player-to-controller", (event, data) => {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
   if (
-    event.sender === validationWindow?.webContents &&
-    data?.type === "validation-result" &&
-    data.requestId === validationRequestId
+    event.sender !== mainWindow?.webContents ||
+    !playerWindow ||
+    playerWindow.isDestroyed()
   ) {
-    const finishedWindow = validationWindow;
-    validationWindow = null;
-    validationRequestId = null;
-    if (!finishedWindow.isDestroyed()) {
-      finishedWindow.close();
-    }
+    return;
   }
 
-  mainWindow.webContents.send(
-    "player-to-controller",
-    data
-  );
+  if (data?.type === "load" && data.videoId) {
+    playerWindow.setFullScreen(true);
+    playerWindow.loadURL(`https://www.youtube.com/watch?v=${encodeURIComponent(data.videoId)}`);
+  } else if (data?.type === "clear") {
+    playerWindow.setFullScreen(false);
+    playerWindow.loadURL("https://www.youtube.com");
+  } else if (data?.type === "play") {
+    playerWindow.webContents.executeJavaScript(`
+      (() => {
+        const video = document.querySelector("video");
+        if (video) video.play().catch(() => {});
+      })();
+    `, true).catch(() => {});
+  } else if (data?.type === "pause") {
+    playerWindow.webContents.executeJavaScript(`
+      (() => document.querySelector("video")?.pause())();
+    `, true).catch(() => {});
+  } else if (data?.type === "volume") {
+    const value = Number(data.volume);
+    if (!Number.isFinite(value)) return;
+    playerVolume = Math.max(0, Math.min(1, value));
+    playerWindow.webContents.executeJavaScript(`(() => {
+      const video = document.querySelector("video");
+      if (video) video.volume = ${playerVolume};
+    })()`).catch(() => {});
+  }
 });
 
 
@@ -319,16 +230,13 @@ ipcMain.on("player-to-controller", (event, data) => {
 // ============================================================
 
 app.whenReady().then(async () => {
-  // Serve the local player over HTTP so YouTube receives a valid Referer
-  // when it loads the IFrame API (file:// pages do not provide one).
+  // Serve the local controller pages over HTTP.
   appServer = http.createServer((request, response) => {
     const pathname = new URL(request.url, appOrigin).pathname;
     const files = {
       "/": "index.html",
       "/index.html": "index.html",
       "/controller.html": "controller.html",
-      "/youtube.html": "youtube.html",
-      "/validate.html": "validate.html"
     };
     const filename = files[pathname];
 

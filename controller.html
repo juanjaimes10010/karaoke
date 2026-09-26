@@ -50,15 +50,6 @@
         background: #555;
       }
 
-      #addButton {
-        background: #cc0000;
-        width: 100%;
-      }
-
-      #addButton:hover {
-        background: #ee0000;
-      }
-
       .controls {
         margin: 15px 0;
         display: flex;
@@ -86,6 +77,25 @@
         color: #aaa;
         font-size: 14px;
       }
+
+      .playlist-controls, .volume-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0 10px;
+      }
+
+      .playlist-controls input, .playlist-controls select {
+        min-width: 0;
+        flex: 1;
+        padding: 9px;
+        border: 1px solid #444;
+        border-radius: 5px;
+        background: #222;
+        color: white;
+      }
+
+      .volume-controls input { flex: 1; }
 
       #notification {
         position: fixed;
@@ -199,8 +209,6 @@
   <body>
     <h1>YouTube Controller</h1>
 
-    <button id="addButton">Add to Queue</button>
-
     <div class="controls">
       <button id="previousButton">⏮ Previous</button>
 
@@ -222,13 +230,23 @@
       <button id="notificationClose" type="button" aria-label="Close notification">×</button>
     </div>
 
+    <div class="volume-controls">
+      <label for="volumeSlider">Volume</label>
+      <input id="volumeSlider" type="range" min="0" max="100" value="100" />
+      <span id="volumeValue">100%</span>
+    </div>
+
+    <div class="playlist-controls">
+      <select id="playlistSelect" aria-label="Choose playlist"></select>
+      <input id="playlistName" type="text" maxlength="60" placeholder="New playlist name" />
+      <button id="createPlaylistButton" type="button">Create</button>
+    </div>
+
     <h2>Queue</h2>
 
     <ul id="queue"></ul>
 
     <script>
-      const addButton = document.getElementById("addButton");
-
       const playButton = document.getElementById("playButton");
 
       const pauseButton = document.getElementById("pauseButton");
@@ -238,6 +256,11 @@
       const previousButton = document.getElementById("previousButton");
 
       const clearButton = document.getElementById("clearButton");
+      const volumeSlider = document.getElementById("volumeSlider");
+      const volumeValue = document.getElementById("volumeValue");
+      const playlistSelect = document.getElementById("playlistSelect");
+      const playlistName = document.getElementById("playlistName");
+      const createPlaylistButton = document.getElementById("createPlaylistButton");
 
       const queueElement = document.getElementById("queue");
 
@@ -248,12 +271,89 @@
       const notificationMessage = document.getElementById("notificationMessage");
       const notificationClose = document.getElementById("notificationClose");
 
-      let queue = [];
+      const playlistStorageKey = "youtube-karaoke-playlists";
+      let playlistData;
+      try {
+        playlistData = JSON.parse(localStorage.getItem(playlistStorageKey)) || {};
+      } catch {
+        playlistData = {};
+      }
+      if (!playlistData.playlists || typeof playlistData.playlists !== "object") {
+        playlistData = { activePlaylist: "My Playlist", playlists: { "My Playlist": [] } };
+      }
+      if (!Object.keys(playlistData.playlists).length) {
+        playlistData.playlists["My Playlist"] = [];
+      }
+      let activePlaylist = playlistData.activePlaylist in playlistData.playlists
+        ? playlistData.activePlaylist
+        : Object.keys(playlistData.playlists)[0];
+      let queue = [...(playlistData.playlists[activePlaylist] || [])];
       let currentIndex = -1;
       let addVideoTasks = Promise.resolve();
-      let validationSequence = 0;
-      const pendingVideoChecks = new Map();
       let notificationTimeout = null;
+
+      function savePlaylists() {
+        playlistData.activePlaylist = activePlaylist;
+        playlistData.playlists[activePlaylist] = queue;
+        localStorage.setItem(playlistStorageKey, JSON.stringify(playlistData));
+      }
+
+      function renderPlaylists() {
+        playlistSelect.replaceChildren();
+        Object.keys(playlistData.playlists).forEach((name) => {
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name;
+          option.selected = name === activePlaylist;
+          playlistSelect.appendChild(option);
+        });
+      }
+
+      createPlaylistButton.addEventListener("click", () => {
+        const name = playlistName.value.trim();
+        if (!name) {
+          status.textContent = "Enter a playlist name.";
+          playlistName.focus();
+          return;
+        }
+        if (playlistData.playlists[name]) {
+          status.textContent = "That playlist already exists.";
+          return;
+        }
+        savePlaylists();
+        playlistData.playlists[name] = [];
+        activePlaylist = name;
+        queue = [];
+        currentIndex = -1;
+        playlistName.value = "";
+        renderPlaylists();
+        renderQueue();
+        window.parent.electronAPI.sendPlayerCommand({ type: "clear" });
+        nowPlaying.textContent = "Nothing playing";
+        status.textContent = `Created playlist: ${name}`;
+        savePlaylists();
+      });
+
+      playlistSelect.addEventListener("change", () => {
+        savePlaylists();
+        activePlaylist = playlistSelect.value;
+        queue = [...(playlistData.playlists[activePlaylist] || [])];
+        currentIndex = queue.length ? 0 : -1;
+        renderQueue();
+        if (currentIndex >= 0) loadCurrentVideo();
+        else {
+          window.parent.electronAPI.sendPlayerCommand({ type: "clear" });
+          nowPlaying.textContent = "Nothing playing";
+        }
+        status.textContent = `Loaded playlist: ${activePlaylist}`;
+        savePlaylists();
+      });
+
+      volumeSlider.addEventListener("input", () => {
+        const volume = Number(volumeSlider.value);
+        volumeValue.textContent = `${volume}%`;
+        window.parent.electronAPI.sendPlayerCommand({ type: "volume", volume: volume / 100 });
+      });
 
       function showNotification(message, type = "info") {
         notificationMessage.textContent = message;
@@ -271,31 +371,6 @@
       }
 
       notificationClose.addEventListener("click", hideNotification);
-
-      // ----------------------------------------------------------
-      // ADD CURRENT YOUTUBE VIDEO
-      // ----------------------------------------------------------
-
-      addButton.addEventListener("click", async () => {
-        try {
-          if (!window.parent.electronAPI) {
-            status.textContent = "Electron API is not available.";
-
-            console.error("window.parent.electronAPI is undefined");
-
-            return;
-          }
-
-          const url = await window.parent.electronAPI.getYouTubeURL();
-          const title = await window.parent.electronAPI.getYouTubeTitle();
-          console.log("Current YouTube URL:", url);
-          queueVideoRequest(url, title);
-        } catch (error) {
-          console.error("Add video error:", error);
-
-          status.textContent = "Failed to add video.";
-        }
-      });
 
       function queueVideoRequest(url, title = "") {
         addVideoTasks = addVideoTasks
@@ -315,36 +390,9 @@
           return;
         }
 
-        status.textContent = `Checking: ${title || videoId}`;
-
-        const requestId = `${Date.now()}-${++validationSequence}`;
-        const validation = await new Promise((resolve) => {
-          const timeout = setTimeout(() => {
-            pendingVideoChecks.delete(requestId);
-            window.parent.electronAPI.cancelVideoValidation(requestId);
-            resolve({ ok: false, timedOut: true });
-          }, 20000);
-
-          pendingVideoChecks.set(requestId, (result) => {
-            clearTimeout(timeout);
-            pendingVideoChecks.delete(requestId);
-            resolve(result);
-          });
-
-          window.parent.electronAPI.validateVideo({
-            requestId,
-            videoId,
-          });
-        });
-
-        if (!validation.ok) {
-          showNotification(getVideoErrorMessage(validation), "error");
-          status.textContent = "Video wasn't added to the queue.";
-          return;
-        }
-
         const video = { videoId, title: title || videoId };
         queue.push(video);
+        savePlaylists();
         renderQueue();
         status.textContent = `Added: ${video.title}`;
         showNotification(`Added to queue: ${video.title}`, "success");
@@ -352,38 +400,6 @@
         if (currentIndex === -1) {
           currentIndex = 0;
           loadCurrentVideo();
-        }
-      }
-
-      function getVideoErrorMessage(validation, wasAlreadyQueued = false) {
-        const queueResult = wasAlreadyQueued
-          ? "It was removed from the queue."
-          : "It wasn't added to the queue.";
-
-        if (validation.timedOut) {
-          return `YouTube didn't respond while checking this video. ${queueResult}`;
-        }
-
-        if (validation.errorCode === "api-load") {
-          return `Couldn't load YouTube's player to check this video. ${queueResult}`;
-        }
-
-        if (validation.errorCode === "checker-closed") {
-          return `The video check was closed before it finished. ${queueResult}`;
-        }
-
-        switch (Number(validation.errorCode)) {
-          case 101:
-          case 150:
-            return `Can't play this video: the owner doesn't allow it to be embedded. ${queueResult}`;
-          case 100:
-            return `This video is unavailable or private. ${queueResult}`;
-          case 153:
-            return `YouTube couldn't verify the player origin. ${queueResult}`;
-          default:
-            return `YouTube couldn't play this video (error ${
-              validation.errorCode ?? "unknown"
-            }). ${queueResult}`;
         }
       }
 
@@ -490,24 +506,12 @@
         renderQueue();
       }
 
-      // ----------------------------------------------------------
-      // PLAY
-      // ----------------------------------------------------------
-
       playButton.addEventListener("click", () => {
-        window.parent.electronAPI.sendPlayerCommand({
-          type: "play",
-        });
+        window.parent.electronAPI.sendPlayerCommand({ type: "play" });
       });
 
-      // ----------------------------------------------------------
-      // PAUSE
-      // ----------------------------------------------------------
-
       pauseButton.addEventListener("click", () => {
-        window.parent.electronAPI.sendPlayerCommand({
-          type: "pause",
-        });
+        window.parent.electronAPI.sendPlayerCommand({ type: "pause" });
       });
 
       // ----------------------------------------------------------
@@ -550,6 +554,7 @@
 
       clearButton.addEventListener("click", () => {
         queue = [];
+        savePlaylists();
 
         currentIndex = -1;
 
@@ -576,6 +581,7 @@
         const wasCurrent = index === currentIndex;
 
         queue.splice(index, 1);
+        savePlaylists();
 
         if (queue.length === 0) {
           currentIndex = -1;
@@ -651,81 +657,12 @@
           queueVideoRequest(video?.url, video?.title);
         });
 
-        window.parent.electronAPI.onPlayerEvent((data) => {
-          console.log("Player event:", data);
-
-          if (!data || !data.type) {
-            return;
-          }
-
-          switch (data.type) {
-            case "validation-result": {
-              const resolveCheck = pendingVideoChecks.get(data.requestId);
-              resolveCheck?.(data);
-              break;
-            }
-
-            case "ready":
-              status.textContent = "Player ready.";
-
-              break;
-
-            case "playing":
-              status.textContent = "Playing.";
-
-              break;
-
-            case "paused":
-              status.textContent = "Paused.";
-
-              break;
-
-            case "ended":
-              if (currentIndex < queue.length - 1) {
-                currentIndex++;
-
-                loadCurrentVideo();
-              } else {
-                status.textContent = "Queue finished.";
-
-                nowPlaying.textContent =
-                  currentIndex >= 0
-                    ? `Finished: ${queue[currentIndex].title}`
-                    : "Nothing playing";
-
-                renderQueue();
-              }
-
-              break;
-
-            case "error":
-              if (
-                currentIndex >= 0 &&
-                queue[currentIndex]?.videoId === data.videoId
-              ) {
-                const failedVideo = queue[currentIndex];
-                removeQueueItem(currentIndex);
-                status.textContent = `Skipped: ${failedVideo.title}`;
-                showNotification(getVideoErrorMessage(data, true), "error");
-                break;
-              }
-
-              status.textContent = `YouTube player error: ${
-                data.errorCode ?? "unknown"
-              }`;
-
-              break;
-
-            default:
-              break;
-          }
-        });
-
         status.textContent = "Controller ready.";
       } else {
         status.textContent = "Electron API is not available.";
       }
 
+      renderPlaylists();
       renderQueue();
     </script>
   </body>

@@ -1,0 +1,16 @@
+{
+  "name": "karaoke",
+  "version": "1.0.0",
+  "description": "a karaoke app that uses youtube premium",
+  "license": "ISC",
+  "author": "Juan Jaimes",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": { 
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5"
+  }
+}

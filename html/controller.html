@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <title>YouTube Controller</title>
+    <link href="../css/controller.css" rel="stylesheet" type="text/css" />
+  </head>
+
+  <body>
+    <div id="nowPlaying">Nothing playing</div>
+
+    <div class="controls">
+      <button id="playButton">▶ Play</button>
+
+      <button id="pauseButton">⏸ Pause</button>
+
+      <button id="previousButton">⏮ Previous</button>
+
+      <button id="nextButton">Next ⏭</button>
+
+      <button id="clearButton">🗑 Clear Queue</button>
+    </div>
+
+    <div class="volume-controls">
+      <label for="volumeSlider">Volume</label>
+      <input id="volumeSlider" type="range" min="0" max="100" value="100" />
+    </div>
+
+    <fieldset>
+      <legend>Playlist</legend>
+      <select id="playlistSelect" aria-label="Choose playlist">
+        <option>Select Playlist</option>
+      </select>
+
+      <div class="button-group">
+        <button id="createPlaylistButton">Add New Playlist</button>
+        <button id="deletePlaylistButton">Delete Playlist</button>
+      </div>
+    </fieldset>
+    <h2>Queue</h2>
+
+    <ul id="queue">
+      <li>
+        <p tabindex="0"><span>Title of song</span></p>
+        <button class="">x</button>
+      </li>
+    </ul>
+    <script src="../js/controller.js"></script>
+  </body>
+</html>

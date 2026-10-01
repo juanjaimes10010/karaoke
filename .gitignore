@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build/output
+out/
+dist/
+build/
+
+# Electron Forge
+out/
+*.zip
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Electron
+release/
+
+# Cache
+.cache/
+.npm/

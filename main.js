@@ -8,6 +8,7 @@ let searchWindow
 let karaokeWindow
 let controllerView
 let searchView
+let splitterBar
 
 const createAdminWindow = () => {
   adminWindow = new BrowserWindow({
@@ -16,34 +17,59 @@ const createAdminWindow = () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload/admin.js'),
       contextIsolation: true,
-      nodeIntegration: true
-    }
+      nodeIntegration: true,
+    },
+    accentColor: 'red'
   })
 
   adminWindow.loadFile('html/admin.html')
 
   controllerView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/controller.js') } })
   searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js') } })
-
+  splitterBar = new WebContentsView({})  
 
 
   adminWindow.contentView.addChildView(controllerView)
   adminWindow.contentView.addChildView(searchView)
+  adminWindow.contentView.addChildView(splitterBar)
 
 
   controllerView.webContents.loadFile('html/controller.html')
   searchView.webContents.loadURL('https://www.youtube.com/')
+  splitterBar.webContents.loadFile('html/splitter-bar.html')
 
-  controllerView.setBounds({ x: 0, y: 0, width: 392.5, height: 600 })
-  searchView.setBounds({ x: 407.5, y: 0, width: 407.5, height: 600 })
+
+  const [width, height] = adminWindow.getContentSize();
+
+  controllerView.setBounds({ x: 0, y: 0, width: 395, height })
+  splitterBar.setBounds({ x: 395, y: 0, width: 10, height })
+  searchView.setBounds({ x: 405, y: 0, width: 395, height })
+
+  splitterBar.webContents.on('before-mouse-event', (event, mouse) => {
+    const [x, y] = adminWindow.getPosition();
+    const [width, height] = adminWindow.getContentSize();
+
+    const relativeX = mouse.globalX - x;
+    const relativeY = mouse.globalY - y;
+
+    let newX = relativeX
+
+    if(relativeX < 175) newX = 175
+    else if(relativeX > width - 175) newX = width - 175
+
+  if (mouse.type === 'mouseUp') {
+      controllerView.setBounds({ x: 0, y: 0, width: newX - 5, height: height })
+      splitterBar.setBounds({ x: newX - 5, y: 0, width: 10, height: height })
+      searchView.setBounds({ x: newX + 5, y: 0, width: width - newX - 5, height: height })
+    }
+  });
 
   adminWindow.on('resize', () => {
-    const [windowWidth, windowHeight] = adminWindow.getSize()
-    const splitterX = controllerView.getBounds().width + 7.5
+    const [width, height] = adminWindow.getContentSize()
 
-    controllerView.setBounds({ x: 0, y: 0, width: windowWidth / 2 - 7.5, height: windowHeight })
-    searchView.setBounds({ x: windowWidth / 2 + 7.5, y: 0, width: windowWidth - windowWidth / 2 - 7.5, height: windowHeight })
-
+    controllerView.setBounds({ x: 0, y: 0, width: width/ 2 - 5, height: height })
+    splitterBar.setBounds({ x: width/ 2 - 5, y: 0, width: 10, height: height })
+    searchView.setBounds({ x: width/ 2 + 5, y: 0, width: width/ 2 - 5, height: height })
   })
 
 }
@@ -94,15 +120,6 @@ ipcMain.on('add-to-queue', (event, url) => {
   }
 })
 
-ipcMain.on('set-view-bounds', (event, newPos) => {
-  if (adminWindow) {
-    const [windowWidth, windowHeight] = adminWindow.getSize()
-
-
-    controllerView.setBounds({ x: 0, y: 0, width: newPos - 7.5 , height: 600 })
-    searchView.setBounds({ x: newPos + 7.5, y: 0, width: windowWidth - newPos - 7.5, height: 600 })
-  }
-})
 
 app.whenReady().then(() => {
   // Menu.setApplicationMenu(null);

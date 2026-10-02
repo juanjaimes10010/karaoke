@@ -6,11 +6,19 @@
   "author": "Juan Jaimes",
   "type": "commonjs",
   "main": "main.js",
-  "scripts": { 
+  "scripts": {
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
     "electron": "^44.4.5"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juanjaimes10010/karaoke.git"
+  },
+  "bugs": {
+    "url": "https://github.com/juanjaimes10010/karaoke/issues"
+  },
+  "homepage": "https://github.com/juanjaimes10010/karaoke#readme"
 }

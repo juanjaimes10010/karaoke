@@ -1,0 +1,28 @@
+[
+    {
+        "title": "my playlist",
+        "songs": [
+            {
+                "title": "song 1",
+                "url": "https://youtube.com/"
+            },
+            {
+                "title": "song 2",
+                "url": "https://youtube.com/"
+            }
+        ]
+    },
+    {
+        "title": "my playlist 2",
+        "songs": [
+            {
+                "title": "song 1",
+                "url": "https://youtube.com/"
+            },
+            {
+                "title": "song 2",
+                "url": "https://youtube.com/"
+            }
+        ]
+    }
+]

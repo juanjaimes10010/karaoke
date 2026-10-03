@@ -135,10 +135,9 @@ h2 {
   font-size: 2rem;
 }
 
-
-
 ul {
   flex: 1;
+  max-width: 100%;
   list-style: none;
   display: flex;
   flex-direction: column;
@@ -146,27 +145,32 @@ ul {
   padding: 1rem;
   margin-bottom: 2rem;
   overflow-y:  scroll;
+  overflow-x:hidden;
   scrollbar-color: red #212121;
 }
 
 li {
- display:  flex;
- gap: .5rem;
+  display:  flex;
+  gap: .5rem;
+  max-width: 100%;
 }
 
 li p {
-    flex: 1;
-    padding: .8rem;
-    background-color: #212121;
-    color: white;
-    font-size: 1.6rem;
-    border: none;
-    border-radius: .4rem;
-    cursor: pointer;
+  flex: 1;
+  padding: .8rem;
+  background-color: #212121;
+  color: white;
+  font-size: 1.6rem;
+  border: none;
+  border-radius: .4rem;
+  cursor: pointer;
+  min-width: 0;
 }
 
 li p span {
-  max-width: 25ch;
+  display: block;
+  width: 100%;
+  max-width: 20ch !important;
   /* Or use relative units like 20em */
   white-space: nowrap;
   /* Prevents text from wrapping to a new line */

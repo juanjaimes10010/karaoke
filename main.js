@@ -109,7 +109,6 @@ ipcMain.on('add-to-queue', (event, url) => {
 
 
 app.whenReady().then(() => {
-  Menu.setApplicationMenu(null);
   createAdminWindow()
 
   // createKaraokeWindow()

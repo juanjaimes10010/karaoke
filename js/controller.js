@@ -1,13 +1,13 @@
 const queueElement = document.getElementById("queue");
 
 
-window.electronAPI.onQueueUpdated( (url) => {
+window.electronAPI.onQueueUpdated( async (url) => {
     const li = document.createElement('li')
     const p = document.createElement('p')
     const span = document.createElement('span')
     const button = document.createElement('button')
-
-    span.textContent = url
+    
+    span.textContent = 'Loading...'
     p.appendChild(span)
     li.appendChild(p)
 
@@ -15,6 +15,23 @@ window.electronAPI.onQueueUpdated( (url) => {
     li.appendChild(button)
 
     queueElement.appendChild(li)
+
+    try {
+      const response = await fetch(url)
+      const html = await response.text()
+      const match = html.match(/<title>(.*?)<\/title>/);
+
+      if (match) {
+        const title = match[1].replace(" - YouTube", "");
+
+        span.textContent = title
+
+      } else {
+        p.textContent = 'unknow video'
+      }
+    } catch(error) {
+      p.textContent = 'failed to load title'
+    }
 })
 
 const playlistSelectInput = document.getElementById('playlistSelect')

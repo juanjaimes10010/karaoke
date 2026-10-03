@@ -4,7 +4,6 @@ const fs = require('fs')
 
 let adminWindow
 let controllerWindow
-let searchWindow
 let karaokeWindow
 let controllerView
 let searchView
@@ -23,8 +22,8 @@ const createAdminWindow = () => {
     accentColor: 'red'
   })
 
-  controllerView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/controller.js') } })
-  searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js') } })
+  controllerView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/controller.js'), contextIsolation: true, nodeIntegration: true } })
+  searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js'), contextIsolation: true, nodeIntegration: true } })
   splitterBar = new WebContentsView()  
   notification = new WebContentsView()
 
@@ -75,18 +74,10 @@ const createAdminWindow = () => {
 
     const relativeX = mouse.globalX - x
     
-
-    if (mouse.type === 'mouseDown' && mouse.button === 'left') {
-      isDragging = true
-    }
-
-    if (mouse.type === 'mouseUp' && mouse.button === 'left') {
-      isDragging = false
-    }
-
-    if (mouse.type === 'mouseMove' && isDragging) {
-      updateBounds(relativeX)
-    }
+    if (mouse.type === 'mouseDown' && mouse.button === 'left') isDragging = true
+    if (mouse.type === 'mouseUp' && mouse.button === 'left') isDragging = false
+    if (mouse.type === 'mouseMove' && isDragging) updateBounds(relativeX)
+    
   })
 
   adminWindow.on('resize', () => {
@@ -111,8 +102,8 @@ const createKaraokeWindow = () => {
 }
 
 ipcMain.on('add-to-queue', (event, url) => {
-  if (controllerWindow) {
-    controllerWindow.webContents.send('queue-updated', queue)
+  if (controllerView) {
+    controllerView.webContents.send('queue-updated', url)
   }
 })
 

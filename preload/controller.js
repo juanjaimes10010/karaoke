@@ -11,8 +11,8 @@ const playlists = JSON.parse(data)
 contextBridge.exposeInMainWorld('electronAPI', {
   playlists,
   onQueueUpdated: (callback) => {
-    ipcRenderer.on('queue-updated', (event, queue) => {
-      callback(queue)
+    ipcRenderer.on('queue-updated', (event, url) => {
+      callback(url)
     })
   }
 })

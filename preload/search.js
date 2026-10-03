@@ -1,11 +1,12 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { ipcRenderer } = require('electron');
 
-document.addEventListener('DOMContentLoaded',
+document.addEventListener('DOMContentLoaded',() => {
   document.addEventListener('click', async event => {
     const video = event.target.closest('ytd-rich-item-renderer, ytd-video-preview, yt-lockup-view-model, ytd-video-renderer, ytm-shorts-lockup-view-model-v2, ytd-playlist-panel-video-renderer')
 
     if(!video) return;
     const link = video.querySelector('a');
+    if(!link.href) return;
     const url = link.href;
 
     if(url.includes('&list=') && !url.includes('&start_radio') && !url.includes('&index=')) return;
@@ -16,4 +17,4 @@ document.addEventListener('DOMContentLoaded',
       ipcRenderer.send('add-to-queue', url);
     }
   }, true)
-)
+})

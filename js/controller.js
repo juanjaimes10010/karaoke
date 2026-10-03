@@ -2,6 +2,21 @@
 const queueElement = document.getElementById("queue");
 
 
+window.electronAPI.onQueueUpdated( (url) => {
+    const li = document.createElement('li')
+    const p = document.createElement('p')
+    const span = document.createElement('span')
+    const button = document.createElement('button')
+
+    span.textContent = url
+    p.appendChild(span)
+    li.appendChild(p)
+
+    button.textContent = 'x'
+    li.appendChild(button)
+
+    queueElement.appendChild(li)
+})
 
 const playlistSelectInput = document.getElementById('playlistSelect')
 

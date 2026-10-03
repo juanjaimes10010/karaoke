@@ -24,7 +24,7 @@ const createAdminWindow = () => {
   controllerView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/controller.js'), contextIsolation: true, nodeIntegration: true } })
   searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js') } })
   splitterBar = new WebContentsView()  
-  notification = new WebContentsView()
+  notification = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/notification.js') } })
 
   adminWindow.contentView.addChildView(controllerView)
   adminWindow.contentView.addChildView(searchView)
@@ -103,6 +103,7 @@ const createKaraokeWindow = () => {
 ipcMain.on('add-to-queue', (event, url) => {
   if (controllerView) {
     controllerView.webContents.send('queue-updated', url)
+    notification.webContents.send('notify', {status: 'success', message: 'added song to playlist'})
   }
 })
 

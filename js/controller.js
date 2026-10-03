@@ -32,6 +32,8 @@ window.electronAPI.playlists.forEach( (playlist, i) => {
 
 playlistSelectInput.addEventListener('change', e => {
   const playlistIndex = playlistSelectInput.value
+  
+  queueElement.innerHTML = ''
 
   window.electronAPI.playlists[playlistIndex].songs.forEach( (song, i) => {
     const li = document.createElement('li')

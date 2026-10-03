@@ -6,8 +6,9 @@ document.addEventListener('DOMContentLoaded',() => {
 
     if(!video) return;
     const link = video.querySelector('a');
-    if(!link.href) return;
+    if(!link) return;
     const url = link.href;
+    if(!url) return;
 
     if(url.includes('&list=') && !url.includes('&start_radio') && !url.includes('&index=')) return;
     else if(url.includes('/watch')|| url.includes('/shorts')) {

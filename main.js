@@ -3,7 +3,6 @@ const path = require('path')
 const fs = require('fs')
 
 let adminWindow
-let controllerWindow
 let karaokeWindow
 let controllerView
 let searchView
@@ -23,7 +22,7 @@ const createAdminWindow = () => {
   })
 
   controllerView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/controller.js'), contextIsolation: true, nodeIntegration: true } })
-  searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js'), contextIsolation: true, nodeIntegration: true } })
+  searchView = new WebContentsView({ webPreferences: { preload: path.join(__dirname, 'preload/search.js') } })
   splitterBar = new WebContentsView()  
   notification = new WebContentsView()
 

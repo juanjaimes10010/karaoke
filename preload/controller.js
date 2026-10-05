@@ -14,5 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('queue-updated', (event, url) => {
       callback(url)
     })
-  }
+  },
+  playSong: (callback) => { ipcRenderer.invoke('play-song')},
+  pauseSong: (callback) => { ipcRenderer.invoke('pause-song')},
+  nextSong: (callback) => { ipcRenderer.invoke('next-song')},
+  previousSong: (callback) => { ipcRenderer.invoke('previous-song')},
+  updatePlaylist: () => { 
+
+  },
+
+
 })

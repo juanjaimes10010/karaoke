@@ -62,6 +62,7 @@ playlistSelectInput.addEventListener('change', e => {
     li.appendChild(p)
 
     button.textContent = 'x'
+    button.setAttribute('data-song-index', i)
     li.appendChild(button)
 
     queueElement.appendChild(li)
@@ -69,5 +70,32 @@ playlistSelectInput.addEventListener('change', e => {
 
 })
 
+const displayPlalist = (playlistIndex) => {}
+
+const addSong = (playlistIndex) => { window.electronAPI.updatePlaylist() }
+
+const updatePlaylist = (playlistIndex) => { window.electronAPI.updatePlaylist() }
+
+const playSong = () => { window.electronAPI.playSong() }
+
+const pauseSong = () => { window.electronAPI.pauseSong() }
+
+const nextSong = () => { window.electronAPI.nextSong() }
+
+const previousSong = () => { window.electronAPI.previousSong() }
+
+const deleteSong = (songIndex) => { window.electronAPI.updatePlaylist() }
+
+const deletePlaylist = (playlistIndex) => { window.electronAPI.deletePlaylist() }
+
+
+document.querySelectorAll('button[data-song-id]').forEach( btn => {
+  const songIndex = btn.getAttribute('data-song-index')
+
+  window.electronAPI.playlist[playlistIndex][songIndex]  
+
+
+
+})
 
 

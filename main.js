@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, WebContentsView } = require('electron')
+const { app, BrowserWindow, Menu, ipcMain, WebContentsView, screen } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
@@ -87,9 +87,21 @@ const createAdminWindow = () => {
 
 
 const createKaraokeWindow = () => {
+
+  const displays = screen.getAllDisplays()
+
+  const hasSecondaryDisplay = displays.length > 1
+
+  const karaokeDisplay = hasSecondaryDisplay ? displays[1] : displays[0];
+
+  const {x, y, width, height} = karaokeDisplay.bounds;
+
+  
   karaokeWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    x: hasSecondaryDisplay ? x : 0,
+    y: hasSecondaryDisplay ? y : 0,
+    width: hasSecondaryDisplay ? width : 800,
+    height: hasSecondaryDisplay ? height : 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload/karaoke.js'),
       contextIsolation: true,
@@ -98,6 +110,8 @@ const createKaraokeWindow = () => {
   })
   
   karaokeWindow.loadFile('html/karaoke.html')
+
+  if(hasSecondaryDisplay) karaokeWindow.setFullScreen(true)
 }
 
 ipcMain.on('add-to-queue', (event, url) => {
@@ -107,10 +121,33 @@ ipcMain.on('add-to-queue', (event, url) => {
   }
 })
 
+ipcMain.on('play-song', (event) => {
+  if(karaokeWindow) {
+    karaokeWindow.webContents.send('play-song')
+  }
+})
+
+ipcMain.on('pause-song', (event) => {
+  if(karaokeWindow) {
+    karaokeWindow.webContents.send('pause-song')
+  }
+})
+
+ipcMain.on('next-song', (event) => {
+  if(karaokeWindow) {
+    karaokeWindow.webContents.send('next-song')
+  }
+})
+
+ipcMain.on('previous-song', (event) => {
+  if(karaokeWindow) {
+    karaokeWindow.webContents.send('previous-song')
+  }
+})
 
 app.whenReady().then(() => {
   createAdminWindow()
 
-  // createKaraokeWindow()
+  createKaraokeWindow()
 
 })

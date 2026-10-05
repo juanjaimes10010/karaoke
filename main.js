@@ -8,6 +8,7 @@ let controllerView
 let searchView
 let splitterBar
 let notification
+let playlists
 
 const createAdminWindow = () => {
   adminWindow = new BrowserWindow({
@@ -85,7 +86,6 @@ const createAdminWindow = () => {
 
 }
 
-
 const createKaraokeWindow = () => {
 
   const displays = screen.getAllDisplays()
@@ -114,10 +114,44 @@ const createKaraokeWindow = () => {
   if(hasSecondaryDisplay) karaokeWindow.setFullScreen(true)
 }
 
+const loadPlaylists = () => {
+  try {
+    const playlistsPath = path.join(__dirname, 'playlists.json')
+    const data = fs.readFileSync(playlistsPath, 'utf8')
+
+    playlists = JSON.parse(data)
+  } catch (error) {
+    if(notification)
+      notification.webContents.send( 'notify',{status: 'error', message: 'Failed to get playlists: ' + error} )
+    else alert('failed to get playlists:', error)
+  }
+}
+
+const updatePlaylists = (updatedPlaylists) => {
+  const playlistsPath = path.join(__dirname, 'playlists.json')
+
+  try {
+    fs.writeFileSync( playlistsPath, JSON.stringify(updatedPlaylists, null, 2), 'utf8')
+    if(notification)
+      notification.webContents.send('notify', { status: 'success', message: 'successfully updated'})
+    else alert('successfully updated')
+  } catch (error) {
+    if(notification)
+      notification.webContents.send( 'notify', { status: 'error', message: 'Failed to update: ' + error} )
+    else alert('failed to update:', error)
+  }
+}
+
+ipcMain.handle('get-playlist', () => playlists ? playlists: [])
+
+ipcMain.on('updated-playlists', (event, updatedPlaylists) => {
+  updatePlaylists(updatedPlaylists)
+})
+
 ipcMain.on('add-to-queue', (event, url) => {
   if (controllerView) {
     controllerView.webContents.send('queue-updated', url)
-    notification.webContents.send('notify', {status: 'success', message: 'added song to playlist'})
+    notification.webContents.send('notify', { status: 'success', message: 'added song to playlist'})
   }
 })
 
@@ -146,8 +180,7 @@ ipcMain.on('previous-song', (event) => {
 })
 
 app.whenReady().then(() => {
+  loadPlaylists()
   createAdminWindow()
-
   createKaraokeWindow()
-
 })

@@ -108,7 +108,7 @@ playlists = getPlaylists();
 
 
 
-window.electronAPI.onQueueUpdated( async (url) => {
+window.electronAPI.onAddedSong( async (url) => {
     const li = document.createElement('li')
     const p = document.createElement('p')
     const span = document.createElement('span')
@@ -133,8 +133,11 @@ window.electronAPI.onQueueUpdated( async (url) => {
 
         span.textContent = title
 
+        window.electronAPI.updatePlaylists(playlists[currentPlaylistIndex].songs.push({ title, url }))
+
       } else {
         p.textContent = 'unknow video'
+        window.electronAPI.updatePlaylists(playlists[currentPlaylistIndex].songs.push({ title: 'Unknown Video', url }))
       }
     } catch(error) {
       p.textContent = 'failed to load title'
@@ -149,7 +152,6 @@ playlistSelectInput.addEventListener('change', e => {
   playlist = playlists[playlistIndex]
   
   drawQueue()
-
 })
 
 document.querySelectorAll('button[data-song-id]').forEach( btn => {

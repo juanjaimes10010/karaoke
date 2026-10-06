@@ -8,3 +8,13 @@ window.electronAPI.onNotify( (notification) => {
   notificationElement.classList.add(notification.status)
   notificationMessage.textContent = notification.message
 })
+
+closeBtn.addEventListener('click', () => {
+  notificationElement.style.transform = 'translateY(-100%)'
+  notificationElement.classList.remove('success', 'error')
+})  
+
+setTimeout(() => {
+  notificationElement.style.transform = 'translateY(-100%)'
+  notificationElement.classList.remove('success', 'error')
+}, 5000)

@@ -88,6 +88,11 @@ const createAdminWindow = () => {
 
 const createKaraokeWindow = () => {
 
+  const cssPath = path.join(__dirname, 'css/karaoke.css')
+
+  const css = fs.readFileSync(cssPath, 'utf8')
+
+
   const displays = screen.getAllDisplays()
 
   const hasSecondaryDisplay = displays.length > 1
@@ -110,6 +115,9 @@ const createKaraokeWindow = () => {
   })
   
   karaokeWindow.loadFile('html/karaoke.html')
+  karaokeWindow.webContents.on('did-finish-load', () => {
+    karaokeWindow.webContents.insertCSS(css)
+  })
 
   if(hasSecondaryDisplay) karaokeWindow.setFullScreen(true)
 }
@@ -148,9 +156,9 @@ ipcMain.on('updated-playlists', (event, updatedPlaylists) => {
   updatePlaylists(updatedPlaylists)
 })
 
-ipcMain.on('add-to-queue', (event, url) => {
+ipcMain.on('added-song', (event, url) => {
   if (controllerView) {
-    controllerView.webContents.send('queue-updated', url)
+    controllerView.webContents.send('added-song', url)
     notification.webContents.send('notify', { status: 'success', message: 'added song to playlist'})
   }
 })

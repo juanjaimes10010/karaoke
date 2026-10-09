@@ -42,7 +42,7 @@ const createAdminWindow = () => {
  
     const HALF_WIDTH = WIDTH / 2
     const SPLITTER_BAR_WIDTH = 10
-    const NOTIFICATION_HEIGHT = 40
+    const NOTIFICATION_HEIGHT = 60
     const HALF_SPLITTER_BAR_WIDTH = SPLITTER_BAR_WIDTH / 2
     const SPLITTER_OFFSET = 175
 
@@ -188,7 +188,8 @@ ipcMain.on('previous-song', (event) => {
 })
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
   loadPlaylists()
   createAdminWindow()
-  createKaraokeWindow()
+  // createKaraokeWindow()
 })

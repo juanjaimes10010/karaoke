@@ -5,6 +5,32 @@ let currentSongIndex
 
 const queueElement = document.getElementById("queue")
 const playlistSelectInput = document.getElementById('playlistSelect')
+const createPlaylistBtn = document.getElementById('createPlaylist')
+const createPlaylistInput = document.getElementById('newPlaylistName')
+
+createPlaylistBtn.addEventListener('click', () => {
+  playlists.push({
+    title: createPlaylistInput.value,
+    songs: []
+  })
+
+  window.electronAPI.updatePlaylists(playlists)
+})
+
+createPlaylistInput.addEventListener('keypress', (e) => {
+  if(e.key === 'Enter') {
+    const newPlaylist = {
+      title: createPlaylistInput.value,
+      songs: []
+    }
+
+    playlists.push(newPlaylist)
+    window.electronAPI.updatePlaylists(playlists)
+  }
+})
+
+
+const deletePlaylistBtn = document.getElementById('deletePlaylist')
 
 const drawPlaylists = () => {
   playlistSelectInput.innerHTML = ''

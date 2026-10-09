@@ -36,8 +36,24 @@
       </select>
 
       <div class="button-group">
-        <button id="createPlaylistButton">Add New Playlist</button>
-        <button id="deletePlaylistButton">Delete Playlist</button>
+        <button popovertarget="createPlaylistPopover">Add New Playlist</button>
+        <div popover id="createPlaylistPopover" class="popover">
+          <h2>Create New Playlist</h2>
+          <label for="newPlaylistName" class="sr-only">New Playlist Name:</label>
+          <input type="text" id="newPlaylistName" name="newPlaylistName" placeholder="Enter playlist name" autofocus />
+          <div class="button-group">
+              <button id="createPlaylistButton" popovertarget="createPlaylistPopover" popovertargetaction="hide">Create</button>
+              <button popovertarget="createPlaylistPopover" popovertargetaction="hide">Cancel</button>
+          </div>
+        </div>
+        <button popovertarget="deletePlaylistPopover" id="deletePlaylistButton">Delete Playlist</button>
+        <div popover id="deletePlaylistPopover" class="popover">
+          <h2>Are you sure you want to delete this playlist?</h2>
+          <div class="button-group">
+              <button id="deletePlaylistButton" popovertarget="deletePlaylistPopover" popovertargetaction="hide">Delete</button>
+              <button popovertarget="deletePlaylistPopover" popovertargetaction="hide">Cancel</button>
+          </div>
+        </div>
       </div>
     </fieldset>
     <h2>Queue</h2>
